@@ -18,7 +18,7 @@ from pytorch_lightning.metrics.functional.classification import (
     dice_score,
     iou,
 )
-from pytorch_lightning.metrics.metric import TensorMetric, TensorCollectionMetric
+from pytorch_lightning.metrics.metric import Metric, TensorMetric, TensorCollectionMetric
 
 
 class Accuracy(TensorMetric):
@@ -74,10 +74,14 @@ class Accuracy(TensorMetric):
                         num_classes=self.num_classes, reduction=self.reduction)
 
 
-class ConfusionMatrix(TensorMetric):
+class ConfusionMatrix(Metric):
     """
     Computes the confusion matrix C where each entry C_{i,j} is the number of observations
     in group i that were predicted in group j.
+
+    This metric uses an internal class to perform the confusion matrix computation and
+    any DDP reduction.  The normalization is performed on the full confusion matrix
+    after the reduction.
 
     Example:
 
@@ -90,7 +94,6 @@ class ConfusionMatrix(TensorMetric):
                 [0., 0., 2.]])
 
     """
-
     def __init__(
             self,
             normalize: bool = False,
@@ -105,11 +108,13 @@ class ConfusionMatrix(TensorMetric):
             reduce_op: the operation to perform for ddp reduction
             num_classes: number of classes if known. Important for DDP reduction.
         """
-        super().__init__(name='confusion_matrix',
-                         reduce_group=reduce_group,
-                         reduce_op=reduce_op)
+        super().__init__(name='confusion_matrix')
+        self._metric = self._ConfusionMatrixInternal(
+                reduce_group=reduce_group,
+                reduce_op=reduce_op,
+                num_classes=num_classes
+        )
         self.normalize = normalize
-        self.num_classes = num_classes
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
@@ -122,9 +127,35 @@ class ConfusionMatrix(TensorMetric):
         Return:
             A Tensor with the confusion matrix.
         """
-        return confusion_matrix(pred=pred, target=target,
-                                normalize=self.normalize,
-                                num_classes=self.num_classes)
+        cm = self._metric(pred=pred, target=target)
+        
+        if self.normalize:
+            row_sum = cm.sum(-1, keepdim=True)
+            divisor = torch.max(row_sum, torch.tensor(1.0, device=cm.device))
+            cm = cm / divisor
+
+        return cm
+
+    class _ConfusionMatrixInternal(TensorMetric):
+        """
+        Internal confusion matrix class to perform the computation and any DDP reduction
+        prior to the confusion matrix normalization.
+        """
+        def __init__(
+                self,
+                reduce_group: Any = None,
+                reduce_op: Any = None,
+                num_classes: Optional[int] = None
+        ):
+            super().__init__(name='confusion_matrix_internal',
+                             reduce_group=reduce_group,
+                             reduce_op=reduce_op)
+            self.num_classes = num_classes
+
+        def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+            return confusion_matrix(pred=pred, target=target,
+                                    normalize=False,
+                                    num_classes=self.num_classes)
 
 
 class PrecisionRecall(TensorCollectionMetric):
