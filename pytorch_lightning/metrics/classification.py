@@ -96,6 +96,7 @@ class ConfusionMatrix(TensorMetric):
             normalize: bool = False,
             reduce_group: Any = None,
             reduce_op: Any = None,
+            num_classes: Optional[int] = None,
     ):
         """
         Args:
@@ -107,6 +108,7 @@ class ConfusionMatrix(TensorMetric):
                          reduce_group=reduce_group,
                          reduce_op=reduce_op)
         self.normalize = normalize
+        self.num_classes = num_classes
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
@@ -120,7 +122,8 @@ class ConfusionMatrix(TensorMetric):
             A Tensor with the confusion matrix.
         """
         return confusion_matrix(pred=pred, target=target,
-                                normalize=self.normalize)
+                                normalize=self.normalize,
+                                num_classes=self.num_classes)
 
 
 class PrecisionRecall(TensorCollectionMetric):
