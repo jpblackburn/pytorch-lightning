@@ -266,7 +266,9 @@ def confusion_matrix(
     cm = bins.reshape(num_classes, num_classes).squeeze().float()
 
     if normalize:
-        cm = cm / cm.sum(-1)
+        row_sum = cm.sum(-1, keepdim=True)
+        divisor = torch.max(row_sum, torch.tensor(1.0, device=cm.device))
+        cm = cm / divisor
 
     return cm
 
