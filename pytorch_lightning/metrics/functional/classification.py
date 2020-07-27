@@ -245,6 +245,7 @@ def confusion_matrix(
         pred: estimated targets
         target: ground truth labels
         normalize: normalizes confusion matrix
+        num_classes: number of classes if known
 
     Return:
         Tensor, confusion matrix C [num_classes, num_classes ]

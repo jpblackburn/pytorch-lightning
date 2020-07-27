@@ -103,6 +103,7 @@ class ConfusionMatrix(TensorMetric):
             normalize: whether to compute a normalized confusion matrix
             reduce_group: the process group to reduce metric results from DDP
             reduce_op: the operation to perform for ddp reduction
+            num_classes: number of classes if known. Important for DDP reduction.
         """
         super().__init__(name='confusion_matrix',
                          reduce_group=reduce_group,
